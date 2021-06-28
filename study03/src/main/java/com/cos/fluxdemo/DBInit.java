@@ -34,6 +34,8 @@ public class DBInit {
 
         return (args) -> {
             // save a few customers
+            System.out.println("repository : " + repository);
+            // repository가 mock 객체일 경우 제대로 동작하지 않는다.
             repository.saveAll(Arrays.asList(new Customer("Jack", "Bauer"),
                     new Customer("Chloe", "O'Brian"),
                     new Customer("Kim", "Bauer"),

@@ -2,6 +2,7 @@ package com.cos.fluxdemo.web;
 
 import com.cos.fluxdemo.domain.Customer;
 import com.cos.fluxdemo.domain.CustomerRepository;
+import com.cos.fluxdemo.service.CustomerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -20,6 +21,7 @@ import java.time.Duration;
 public class CustomerController {
 
     private final CustomerRepository customerRepository;
+    private final CustomerService customerService;
 
     // Sink : 요청에 대한 응답 스트림을 merge 한 것
     // A 요청 -> Flux -> stream
@@ -63,7 +65,7 @@ public class CustomerController {
             sink.asFlux().blockLast();
             // 재요청이 안되는 문제 -> 연결 취소해도 취소된줄 모른다.
             // 따라서 연결 끊을 시 마지막 데이터라고 알려줌 -> onComplete 호출, 중간에 끊어도 다시 연결 가능
-        }); // produces = MediaType.TEXT_EVENT_STREAM_VALUE 생략 가능
+        }); // produces = MediaType.TEXT_EVENT_STREAM_VALUE 생략 가능 (text/event-stream 포맷 = 서버에 지속적인 연결)
     }
 
     @PostMapping("/customer")
@@ -72,4 +74,8 @@ public class CustomerController {
             sink.tryEmitNext(c);
         });
     }
+
+    // javascript 등으로 text/event-stream 포맷의 데이터를 구독할 수 있다. (EventSource)
+    // 그리고 구독한 데이터를 받는 이벤트를 만들고, 페이지를 설계할 수 있다.
+    // 지금은 화면이 로딩되는 화면이지만 원래는 응답이 완료된 웹페이지를 보여주고 내부적으로 로딩되면서 비동기 통신을 한다.
 }
