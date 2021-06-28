@@ -4,8 +4,10 @@ import com.cos.fluxdemo.domain.Customer;
 import com.cos.fluxdemo.domain.CustomerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -19,7 +21,11 @@ public class CustomerController {
 
     private final CustomerRepository customerRepository;
 
-    // sink : 요청에 대한 응답 스트림을 merge 한 것
+    // Sink : 요청에 대한 응답 스트림을 merge 한 것
+    // A 요청 -> Flux -> stream
+    // B 요청 -> Flux -> stream
+    // -> Flux.merge -> Sink
+
     // many().multicast(): 새로 푸시 된 데이터 만 구독자에게 전송하여 배압을 준수하는 싱크 ( "구독자의 구독 후"에서처럼 새로 푸시 됨).
     // many().unicast(): 위와 동일하며 첫 번째 구독자 레지스터가 버퍼링되기 전에 푸시 된 데이터가 왜곡됩니다.
     // many().replay(): 푸시 된 데이터의 지정된 기록 크기를 새 구독자에게 재생 한 다음 새 데이터를 계속해서 실시간으로 푸시하는 싱크입니다.
@@ -51,8 +57,19 @@ public class CustomerController {
         return customerRepository.findById(id).log();
     }
 
-    @GetMapping(value = "/customer/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE) // SSE - 응답 스트림 유지
-    public Flux<Customer> findAllSSE() {
-        return customerRepository.findAll().delayElements(Duration.ofSeconds(1)).log();
+    @GetMapping("/customer/sse") // SSE - 응답 스트림 유지
+    public Flux<ServerSentEvent<Customer>> findAllSSE() {
+        return sink.asFlux().map(c -> ServerSentEvent.builder(c).build()).doOnCancel(() -> {
+            sink.asFlux().blockLast();
+            // 재요청이 안되는 문제 -> 연결 취소해도 취소된줄 모른다.
+            // 따라서 연결 끊을 시 마지막 데이터라고 알려줌 -> onComplete 호출, 중간에 끊어도 다시 연결 가능
+        }); // produces = MediaType.TEXT_EVENT_STREAM_VALUE 생략 가능
+    }
+
+    @PostMapping("/customer")
+    public Mono<Customer> save() {
+        return customerRepository.save(new Customer("gildong", "Hong")).doOnNext(c -> {
+            sink.tryEmitNext(c);
+        });
     }
 }
